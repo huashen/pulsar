@@ -127,6 +127,7 @@
         <artifactId>protobuf-maven-plugin</artifactId>
         <version>${protobuf-maven-plugin.version}</version>
         <configuration>
+          <protocExecutable>/usr/local/bin/protoc</protocExecutable>
           <protocArtifact>com.google.protobuf:protoc:${protoc3.version}:exe:${os.detected.classifier}</protocArtifact>
           <checkStaleness>true</checkStaleness>
         </configuration>
