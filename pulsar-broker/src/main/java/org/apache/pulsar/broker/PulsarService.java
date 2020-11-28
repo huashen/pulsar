@@ -451,7 +451,7 @@ public class PulsarService implements AutoCloseable {
             acquireSLANamespace();
 
             // start function worker service if necessary
-            this.startWorkerService(brokerService.getAuthenticationService(), brokerService.getAuthorizationService());
+            //this.startWorkerService(brokerService.getAuthenticationService(), brokerService.getAuthorizationService());
 
             final String bootstrapMessage = "bootstrap service "
                     + (config.getWebServicePort().isPresent() ? "port = " + config.getWebServicePort().get() : "")
