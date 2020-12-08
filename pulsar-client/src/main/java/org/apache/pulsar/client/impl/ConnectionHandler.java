@@ -26,14 +26,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class ConnectionHandler {
+    //用于原子更新ClientCnx
     private static final AtomicReferenceFieldUpdater<ConnectionHandler, ClientCnx> CLIENT_CNX_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(ConnectionHandler.class, ClientCnx.class, "clientCnx");
+
+    //封装底层的客户端控制上下文，是实际的处理网络连接的
     @SuppressWarnings("unused")
     private volatile ClientCnx clientCnx = null;
 
+    //客户端句柄状态
     protected final HandlerState state;
+
+    //用于自动重连的时间组件
     protected final Backoff backoff;
 
+    //connection 用于回调
     interface Connection {
         void connectionFailed(PulsarClientException exception);
         void connectionOpened(ClientCnx cnx);
@@ -49,17 +56,20 @@ class ConnectionHandler {
     }
 
     protected void grabCnx() {
+        //如果ClientCnx不为空，则直接返回，因为已经设置过了，这时候就忽略重连请求
         if (CLIENT_CNX_UPDATER.get(this) != null) {
             log.warn("[{}] [{}] Client cnx already set, ignoring reconnection request", state.topic, state.getHandlerName());
             return;
         }
 
+        //判定下是否能重连，只有Uninitialized、Connecting、Ready才能重连
         if (!isValidStateForReconnection()) {
             // Ignore connection closed when we are shutting down
             log.info("[{}] [{}] Ignoring reconnection request (state: {})", state.topic, state.getHandlerName(), state.getState());
             return;
         }
 
+        //客户端开始获取连接，如果连接发送异常，则延后重连
         try {
             state.client.getConnection(state.topic) //
                     .thenAccept(cnx -> connection.connectionOpened(cnx)) //

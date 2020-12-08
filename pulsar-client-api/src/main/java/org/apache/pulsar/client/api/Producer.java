@@ -31,11 +31,13 @@ public interface Producer<T> extends Closeable {
     /**
      * @return the topic which producer is publishing to
      */
+    //获取Topic
     String getTopic();
 
     /**
      * @return the producer name which could have been assigned by the system or specified by the client
      */
+    //获取生产者名称
     String getProducerName();
 
     /**
@@ -53,6 +55,7 @@ public interface Producer<T> extends Closeable {
      * @throws PulsarClientException.AlreadyClosedException
      *             if the producer was already closed
      */
+    //发送消息
     MessageId send(T message) throws PulsarClientException;
 
     /**
@@ -70,6 +73,7 @@ public interface Producer<T> extends Closeable {
      *            a byte array with the payload of the message
      * @return a future that can be used to track when the message will have been safely persisted
      */
+    //异步发送消息
     CompletableFuture<MessageId> sendAsync(T message);
 
     /**
@@ -79,6 +83,7 @@ public interface Producer<T> extends Closeable {
      * @since 2.1.0
      * @see #flushAsync()
      */
+    //刷新客户端的消息缓存并阻塞，直到所有消息成功保存
     void flush() throws PulsarClientException;
 
     /**
@@ -88,6 +93,7 @@ public interface Producer<T> extends Closeable {
      * @since 2.1.0
      * @see #flush()
      */
+    //异步刷新客户端的消息缓存并阻塞，直到所有消息成功保存
     CompletableFuture<Void> flushAsync();
 
     /**
@@ -105,6 +111,7 @@ public interface Producer<T> extends Closeable {
      *
      * @return a typed message builder that can be used to construct the message to be sent through this producer
      */
+    //创建一个新消息构造器
     TypedMessageBuilder<T> newMessage();
 
     /**
@@ -118,6 +125,7 @@ public interface Producer<T> extends Closeable {
      *
      * @return the last sequence id published by this producer
      */
+    //获取生产者最后一个序列ID
     long getLastSequenceId();
 
     /**
@@ -136,6 +144,7 @@ public interface Producer<T> extends Closeable {
      *
      * @return statistic for the producer or null if ProducerStatsRecorderImpl is disabled.
      */
+    //获取消费者状态
     ProducerStats getStats();
 
     /**
@@ -148,6 +157,7 @@ public interface Producer<T> extends Closeable {
      *             if the producer was already closed
      */
     @Override
+    //关闭生产者并且释放所有分配资源
     void close() throws PulsarClientException;
 
     /**
@@ -158,10 +168,12 @@ public interface Producer<T> extends Closeable {
      *
      * @return a future that can used to track when the producer has been closed
      */
+    //异步关闭生产者并且释放所有分配资源
     CompletableFuture<Void> closeAsync();
 
     /**
      * @return Whether the producer is currently connected to the broker
      */
+    //判断生产者是否已连接上broker
     boolean isConnected();
 }

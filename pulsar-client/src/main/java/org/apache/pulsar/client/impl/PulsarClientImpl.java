@@ -95,6 +95,9 @@ public class PulsarClientImpl implements PulsarClient {
     private final Timer timer;
     private final ExecutorProvider externalExecutorProvider;
 
+    /**
+     * PulsarClient状态 打开 关闭中 已关闭
+     */
     enum State {
         Open, Closing, Closed
     }
@@ -208,29 +211,35 @@ public class PulsarClientImpl implements PulsarClient {
 
     public <T> CompletableFuture<Producer<T>> createProducerAsync(ProducerConfigurationData conf, Schema<T> schema,
           ProducerInterceptors<T> interceptors) {
+        //配置为空
         if (conf == null) {
             return FutureUtil.failedFuture(
                 new PulsarClientException.InvalidConfigurationException("Producer configuration undefined"));
         }
 
+        //如果Schema为自动消费者Schema实例，由于这里是生产者，故抛异常
         if (schema instanceof AutoConsumeSchema) {
             return FutureUtil.failedFuture(
                 new PulsarClientException.InvalidConfigurationException("AutoConsumeSchema is only used by consumers to detect schemas automatically"));
         }
 
+        //Pulsar 客户端是否初始化完成，如果状态不是Open，则抛异常：客户端已关闭。
         if (state.get() != State.Open) {
             return FutureUtil.failedFuture(new PulsarClientException.AlreadyClosedException("Client already closed : state = " + state.get()));
         }
 
         String topic = conf.getTopicName();
 
+        //对Topic进行格式校验
         if (!TopicName.isValid(topic)) {
             return FutureUtil.failedFuture(
                 new PulsarClientException.InvalidTopicNameException("Invalid topic name: '" + topic + "'"));
         }
 
+        //自动获取Schema
         if (schema instanceof AutoProduceBytesSchema) {
             AutoProduceBytesSchema autoProduceBytesSchema = (AutoProduceBytesSchema) schema;
+            //这里就是查找服务，通过Topic查询注册的Schema，如果没注册，则默认Schema.BYTES
             return lookup.getSchema(TopicName.get(conf.getTopicName()))
                     .thenCompose(schemaInfoOptional -> {
                         if (schemaInfoOptional.isPresent()) {
@@ -252,6 +261,7 @@ public class PulsarClientImpl implements PulsarClient {
                                                                    ProducerInterceptors<T> interceptors) {
         CompletableFuture<Producer<T>> producerCreatedFuture = new CompletableFuture<>();
 
+        //通过查找服务获取Topic元数据，这里主要是确定Topic是否分区，以此来确定用哪个底层生产者实例
         getPartitionedTopicMetadata(topic).thenAccept(metadata -> {
             if (log.isDebugEnabled()) {
                 log.debug("[{}] Received topic metadata. partitions: {}", topic, metadata.partitions);
@@ -598,8 +608,16 @@ public class PulsarClientImpl implements PulsarClient {
         cnxPool.closeAllConnections();
     }
 
+    /**
+     * 连接主方法
+     *
+     * @param topic
+     * @return
+     */
     protected CompletableFuture<ClientCnx> getConnection(final String topic) {
+        //解析Topic
         TopicName topicName = TopicName.get(topic);
+        //从查找服务里读取存活的broker 地址，异步返回 ClientCnx ，根据成功与失败回调 Connection 接口中2个方法
         return lookup.getBroker(topicName)
                 .thenCompose(pair -> cnxPool.getConnection(pair.getLeft(), pair.getRight()));
     }

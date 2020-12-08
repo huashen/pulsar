@@ -186,6 +186,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             metadata = Collections.unmodifiableMap(new HashMap<>(conf.getProperties()));
         }
 
+        //创建连接处理器
         this.connectionHandler = new ConnectionHandler(this,
         	new BackoffBuilder()
         	    .setInitialTime(100, TimeUnit.MILLISECONDS)
@@ -195,7 +196,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
 			                                client.getConfiguration().getMaxBackoffIntervalNanos())
 			    .create(),
             this);
-
+        //开始连接broker
         grabCnx();
     }
 

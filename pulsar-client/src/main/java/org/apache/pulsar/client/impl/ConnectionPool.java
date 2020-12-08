@@ -49,13 +49,20 @@ import org.apache.pulsar.common.util.netty.EventLoopUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 主要是管理客户端与broker或proxy的连接
+ */
 public class ConnectionPool implements Closeable {
+    //核心容器，用于存客户端与broker或proxy的连接
     protected final ConcurrentHashMap<InetSocketAddress, ConcurrentMap<Integer, CompletableFuture<ClientCnx>>> pool;
 
     private final Bootstrap bootstrap;
     private final EventLoopGroup eventLoopGroup;
+
+    //每个主机最大连接
     private final int maxConnectionsPerHosts;
 
+    //域名解析器
     protected final DnsNameResolver dnsResolver;
 
     public ConnectionPool(ClientConfigurationData conf, EventLoopGroup eventLoopGroup) throws PulsarClientException {
@@ -129,15 +136,22 @@ public class ConnectionPool implements Closeable {
      *            the real address where the TCP connection should be made
      * @return a future that will produce the ClientCnx object
      */
+    //核心方法
     public CompletableFuture<ClientCnx> getConnection(InetSocketAddress logicalAddress,
             InetSocketAddress physicalAddress) {
+        //如果每个主机最大连接数为0，则禁用连接池，直接创建连接
         if (maxConnectionsPerHosts == 0) {
             // Disable pooling
             return createConnection(logicalAddress, physicalAddress, -1);
         }
 
+        //如果不为0，则产生一个随机数，maxConnectionsPerHosts取余，生成一个randomKey
         final int randomKey = signSafeMod(random.nextInt(), maxConnectionsPerHosts);
 
+        /*
+         * 连接池里如果logicalAddress作为key，没有对应的value，则创建新ConcurrentMap<Integer, CompletableFuture<ClientCnx>对象，
+         * 如果randomKey作为key，没有对应的value，则使用createConnection(logicalAddress, physicalAddress, randomKey)方法创建一个CompletableFuture<ClientCnx>
+         */
         return pool.computeIfAbsent(logicalAddress, a -> new ConcurrentHashMap<>()) //
                 .computeIfAbsent(randomKey, k -> createConnection(logicalAddress, physicalAddress, randomKey));
     }
@@ -151,6 +165,7 @@ public class ConnectionPool implements Closeable {
         final CompletableFuture<ClientCnx> cnxFuture = new CompletableFuture<ClientCnx>();
 
         // Trigger async connect to broker
+        // DNS解析主机名，返回IP数组，以此连接IP，只要一连接成功就返回，否则继续重试下一IP，如果所有IP重试完，还是没连接上，则抛异常
         createConnection(physicalAddress).thenAccept(channel -> {
             log.info("[{}] Connected to server", channel);
 
@@ -159,11 +174,13 @@ public class ConnectionPool implements Closeable {
                 if (log.isDebugEnabled()) {
                     log.debug("Removing closed connection from pool: {}", v);
                 }
+                // 如果连接关闭，则清理垃圾（主要是从ConnectionPool里移除对应的对象）
                 cleanupConnection(logicalAddress, connectionKey, cnxFuture);
             });
 
             // We are connected to broker, but need to wait until the connect/connected handshake is
             // complete
+            // 这里已经连接上broker，但是需要等待直到连接握手完成
             final ClientCnx cnx = (ClientCnx) channel.pipeline().get("handler");
             if (!channel.isActive() || cnx == null) {
                 if (log.isDebugEnabled()) {
